@@ -188,6 +188,7 @@ def run_command():
     parser.add_argument('--num-instructions', default=None) #default_spec_instrs if execution_trace[0].isdigit() else default_gap_instrs)
     parser.add_argument('--num-prefetch-warmup-instructions', default=default_warmup_instrs)
     parser.add_argument('--seed-file', default=default_seed_file)
+    parser.add_argument('--name', default='from_file')
 
     args = parser.parse_args(sys.argv[2:])
 
@@ -243,12 +244,12 @@ def run_command():
             cmd = '<{prefetch} {binary} -prefetch_warmup_instructions {warm}000000 -simulation_instructions {sim}000000 -seed {seed} -traces {trace} > {results}/{base_trace}-{base_binary}.txt 2>&1'.format(
                 prefetch=args.prefetch, binary=default_prefetcher_binary, warm=args.num_prefetch_warmup_instructions, sim=args.num_instructions,
                 trace=execution_trace, seed=seed, results=args.results_dir,
-                base_trace=os.path.basename(execution_trace), base_binary=os.path.basename(default_prefetcher_binary))
+                base_trace=os.path.basename(execution_trace), base_binary=args.name)#os.path.basename(default_prefetcher_binary))
         else:
             cmd = '<{prefetch} {binary} -prefetch_warmup_instructions {warm}000000 -simulation_instructions {sim}000000 -traces {trace} > {results}/{base_trace}-{base_binary}.txt 2>&1'.format(
                 prefetch=args.prefetch, binary=default_prefetcher_binary, warm=args.num_prefetch_warmup_instructions, sim=args.num_instructions,
                 trace=execution_trace, results=args.results_dir, base_trace=os.path.basename(execution_trace),
-                base_binary=os.path.basename(default_prefetcher_binary))
+                base_binary=args.name)#os.path.basename(default_prefetcher_binary))
 
         print('Running "' + cmd + '"')
 
@@ -370,13 +371,30 @@ def read_load_trace_data(load_trace, num_prefetch_warmup_instructions):
 
     train_data = []
     eval_data = []
-    with open(load_trace, 'r') as f:
-        for line in f:
-            pline = process_line(line)
-            if pline[0] < num_prefetch_warmup_instructions * 1000000:
-                train_data.append(pline)
-            else:
-                eval_data.append(pline)
+    if load_trace.endswith('.txt'):
+        with open(load_trace, 'r') as f:
+            for i, line in enumerate(f):
+                if line.startswith('***') or line.startswith('Read'):
+                    continue
+                pline = process_line(line)
+                if pline[0] < num_prefetch_warmup_instructions * 1000000:
+                    train_data.append(pline)
+                else:
+                    eval_data.append(pline)
+    elif load_trace.endswith('.txt.xz'):
+        import lzma
+        with lzma.open(load_trace, mode='rt', encoding='utf-8') as f:
+            for i, line in enumerate(f):
+                if line.startswith('***') or line.startswith('Read'):
+                    continue
+                pline = process_line(line)
+                if pline[0] < num_prefetch_warmup_instructions * 1000000:
+                    train_data.append(pline)
+                else:
+                    eval_data.append(pline)
+    else:
+        print('Unsupported load trace file format')
+        exit(-1)
 
     return train_data, eval_data
 
@@ -390,7 +408,7 @@ def train_command():
     parser.add_argument('load_trace', default=None)
     parser.add_argument('--generate', default=None)
     parser.add_argument('--model', default=None)
-    parser.add_argument('--num-prefetch-warmup-instructions', default=default_warmup_instrs)
+    parser.add_argument('--num-prefetch-warmup-instructions', type=int, default=default_warmup_instrs)
 
     args = parser.parse_args(sys.argv[2:])
 
