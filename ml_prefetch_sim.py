@@ -344,7 +344,9 @@ def eval_command():
         d = traces[trace]
         if 'no' in d:
             stats.append(compute_stats(trace, d['no'], baseline_name='no'))
-            stats.append(compute_stats(trace, d['prefetch'], d['no'], baseline_name='yours'))
+            if (trace_stats := compute_stats(trace, d.get('prefetch', None), d['no'], baseline_name='yours')) is not None:
+                stats.append(trace_stats)
+            # stats.append(compute_stats(trace, d.get('prefetch', None), d['no'], baseline_name='yours'))
         else:
             stats.append(compute_stats(trace, d['prefetch'], baseline_name='No Baseline'))
         for fn in baseline_fns:
@@ -434,7 +436,7 @@ def generate_command():
     parser.add_argument('load_trace', default=None)
     parser.add_argument('prefetch_file', default=None)
     parser.add_argument('--model', default=None, required=True)
-    parser.add_argument('--num-prefetch-warmup-instructions', default=default_warmup_instrs)
+    parser.add_argument('--num-prefetch-warmup-instructions', type=int, default=default_warmup_instrs)
 
     args = parser.parse_args(sys.argv[2:])
 
